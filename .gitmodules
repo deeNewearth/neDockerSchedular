@@ -1,0 +1,3 @@
+[submodule "slack"]
+	path = slack
+	url = https://github.com/shreedee/Microsoft.Extensions.Logging.Slack.git
