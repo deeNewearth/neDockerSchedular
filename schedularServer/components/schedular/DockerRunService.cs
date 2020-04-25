@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -42,10 +43,16 @@ namespace components.schedular
         }
 
         string _logFolder = null;
+        string _slackKey = null;
         public async Task Execute(IJobExecutionContext context)
         {
             try
             {
+                if(null == _slackKey)
+                {
+                    _slackKey = _configuration["notifications:slack"];
+                    Debug.Assert(!string.IsNullOrWhiteSpace(_slackKey), "Put your slack key in global environment  notifications__slack for slack publish to work");
+                }
 
 
                 if (null == _logFolder)

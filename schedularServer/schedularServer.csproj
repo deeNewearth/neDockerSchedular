@@ -9,5 +9,9 @@
     <PackageReference Include="Quartz" Version="3.0.7" />
   </ItemGroup>
 
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <ExcludeFilesFromDeployment>appsettings.secrets.json</ExcludeFilesFromDeployment>
+  </PropertyGroup>
+
 
 </Project>
