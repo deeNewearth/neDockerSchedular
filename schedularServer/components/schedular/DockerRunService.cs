@@ -25,59 +25,36 @@ namespace components.schedular
         readonly ILogger _logger;
         IConfiguration _configuration;
 
+        /// <summary>
+        /// This one sends out Notification to end user. Keep this minimal
+        /// </summary>
+        readonly ILogger _runDataLogger;
+
         public DockerRunService(
             IConfiguration configuration,
+            ILogger<RunData> runLogger,
             ILogger<DockerRunService> logger)
         {
             _configuration = configuration;
             _logger = logger;
+            _runDataLogger = runLogger;
         }
 
         /// <summary>
-        /// Used to store Run information
+        /// Just to force a special logger category
         /// </summary>
-        class RunData
-        {
-            public DateTime startTime { get; set; }
-            public DateTime endTime { get; set; }
-        }
-
-        string _logFolder = null;
-        string _slackKey = null;
+        
+        
         public async Task Execute(IJobExecutionContext context)
         {
+            var jobName = context.JobDetail.Key.Name.Split('.').Last();
             try
             {
-                if(null == _slackKey)
-                {
-                    _slackKey = _configuration["notifications:slack"];
-                    Debug.Assert(!string.IsNullOrWhiteSpace(_slackKey), "Put your slack key in global environment  notifications__slack for slack publish to work");
-                }
-
-
-                if (null == _logFolder)
-                {
-                    _logFolder = _configuration["Docker:logFolder"];
-                    if (string.IsNullOrWhiteSpace(_logFolder))
-                        _logFolder = Path.GetTempPath();
-
-                    _logFolder = Path.Combine(_logFolder, "dockerRunLogs");
-
-                    if (!Directory.Exists(_logFolder))
-                    {
-                        Directory.CreateDirectory(_logFolder);
-                    }
-
-                    _logger.LogInformation($"using _logFolder -> {_logFolder}");
-                }
-
-
                 _logger.LogInformation($"{DateTime.UtcNow} : {context.JobDetail.Key} :Starting");
 
                 var launchParamsKey = context.JobDetail.JobDataMap[JobScheduleModel.LAUNCH_PARAMS_CONFIG_KEY] as string;
                 if (string.IsNullOrWhiteSpace(launchParamsKey))
                     throw new Exception($"No launch Parameters for job ");
-
 
                 var launchConfig = new DockerRunParamsModel();
                 _configuration.GetSection(launchParamsKey).Bind(launchConfig);
@@ -127,7 +104,7 @@ namespace components.schedular
 
                */
 
-                var started = DateTime.Now;
+                var started = DateTime.UtcNow;
                 if (!await client.Containers.StartContainerAsync(launchConfig.containerId, new ContainerStartParameters { }))
                     throw new Exception("failed to start container");
 
@@ -138,24 +115,8 @@ namespace components.schedular
                     var done = await client.Containers.WaitContainerAsync(launchConfig.containerId);
                     _logger.LogInformation($"{DateTime.UtcNow} : {context.JobDetail.Key} :done -> {done.StatusCode}");
 
-                    var doneData = JsonConvert.SerializeObject(new
-                    {
-                        started,
-                        completed = DateTime.Now,
-                        done.StatusCode
-                    });
-
-                    var keyEnd = context.JobDetail.Key.Name.Split('.').Last();
-
-                    var statFilePre = Path.Combine(_logFolder, "${keyEnd}_" + DateTime.UtcNow.ToString("yyyy-MM-dd-HH-mm-ss"));
-                    var statFile = $"{statFilePre}.log";
-                    var i = 1;
-                    while (File.Exists(statFile))
-                    {
-                        statFile = $"{statFilePre}_{i++}.log";
-                    }
-
-                    await File.WriteAllTextAsync(statFile, $"{doneData}\n");
+                    
+                    _runDataLogger.LogInformation($"Task {jobName} started at {started}, ran for {DateTime.UtcNow - started} and finished with status code {done.StatusCode}");
 
                     if (0 != done.StatusCode)
                     {
@@ -176,7 +137,7 @@ namespace components.schedular
             }
             catch (Exception ex)
             {
-                _logger.LogCritical($"Failed job execution {context.JobDetail.Key} -> {ex}");
+                _logger.LogCritical(ex, $"Failed execution for Task {jobName}");
 
                 /*
                 bool ranOnce = _statData.ContainsKey(context.JobDetail.Key) && _statData[context.JobDetail.Key].ranOnce;
@@ -195,7 +156,7 @@ namespace components.schedular
         }
     }
 
-    
 
+    public class RunData { }
 
 }
