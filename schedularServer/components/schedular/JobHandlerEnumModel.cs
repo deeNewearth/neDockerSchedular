@@ -8,5 +8,5 @@ using System.Threading.Tasks;
 namespace components.schedular
 {
     [JsonConverter(typeof(StringEnumConverter))]
-    public enum JobHandlerEnumModel { run, exec}
+    public enum JobHandlerEnumModel { start, exec}
 }

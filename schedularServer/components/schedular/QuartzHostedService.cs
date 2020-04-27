@@ -112,7 +112,7 @@ namespace components.schedular
                     throw new Exception("No jobs found. Please check configuration files");
                 }
 
-                await Task.WhenAll(jobsConfig.jobs.Select(async (jobData) =>
+                await Task.WhenAll(jobsConfig.jobs.Where(j=>!j.Value.disabled).Select(async (jobData) =>
                {
                    var id = $"docker.launch.{jobData.Key}";
                    if (null == jobData.Value.handler)
@@ -128,17 +128,12 @@ namespace components.schedular
                    }
 
 
-                   if (!JobScheduleModel.mapHandlers.ContainsKey(jobData.Value.handler.Value))
-                   {
-                       _logger.LogCritical($"no Handler type for job: {id}");
-                       return;
-                   }
-
-                   var handlerType = JobScheduleModel.mapHandlers[jobData.Value.handler.Value];
+                   var handlerType = ScheduledJob.mapHandlers[jobData.Value.handler.Value];
+                   
                    var job = JobBuilder.Create(handlerType)
                        .WithIdentity(id, handlerType.FullName)
-                       .UsingJobData(JobScheduleModel.LAUNCH_PARAMS_CONFIG_KEY, $"jobsConfig:jobs:{jobData.Key}:parameters")
-                       .WithDescription(jobData.Value.description ?? "docker launch job")
+                       .UsingJobData(new JobDataMap(jobData.Value.jobDataMap))
+                       .WithDescription(jobData.Value.description ?? "docker job")
                        .Build();
 
                    var trigger = TriggerBuilder.Create()

@@ -27,7 +27,13 @@ namespace schedularServer
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddTransient<components.schedular.DockerRunService>();
+            services.AddTransient<components.docker.IDockerExecuter,components.docker.DockerExecuter>();
+
+            //register all Jobs
+            foreach(var t in components.schedular.ScheduledJob.mapHandlers)
+            {
+                services.AddTransient(t.Value);
+            }
 
             services.AddSingleton<Quartz.Spi.IJobFactory, components.schedular.JobFactory>();
             services.AddSingleton<Quartz.ISchedulerFactory, Quartz.Impl.StdSchedulerFactory>();
@@ -39,7 +45,7 @@ namespace schedularServer
 
         static object SlackMessage(string channel, string username, string text, Exception ex, string source, string category)
         {
-            var texts = new[] { $"*{text}*" };
+            var texts = new[] { text };
             if (null != ex)
                 texts = texts.Concat(new[] { $"Exception: ->`{ex}`" }).ToArray();
 
@@ -86,19 +92,19 @@ namespace schedularServer
                     webhookUrl = webhookUrl,
                     MinLevel = LogLevel.Error,
 
-                    slackFormatter = (text, cat, level, ex) => SlackMessage(criticalChannel, botName,text,ex, source,cat)
+                    slackFormatter = (text, cat, level, ex) => SlackMessage(criticalChannel, botName,$"*{text}*",ex, source,cat)
                 }, env) ;
 
-                var g = typeof(components.schedular.RunData);
-                var runDataName = typeof(components.schedular.RunData).FullName;
-                //task done
+                var runDataName = typeof(components.schedular.ScheduledJob).FullName;
+                //success done messages only
                 loggerFactory.AddSlack(new SlackConfiguration
                 {
                     webhookUrl = webhookUrl,
 
                     filter = (cat, level, ex) =>
                     {
-                        if (level >= LogLevel.Information && runDataName == cat)
+                        if (runDataName == cat && 
+                                level >= LogLevel.Information && level < LogLevel.Error)
                             return true;
 
                         return false;
@@ -108,8 +114,6 @@ namespace schedularServer
                 }, env); ; ;
 
             }
-
-
 
             app.UseRouting();
 

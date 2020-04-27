@@ -5,11 +5,8 @@ using System.Threading.Tasks;
 
 namespace components.schedular
 {
-    public enum JobHandlers { run, exec};
-
     public class JobScheduleModel
     {
-        public static readonly string LAUNCH_PARAMS_CONFIG_KEY = @"LAUNCH_PARAMS";
         /// <summary>
         /// when to trigger this job
         /// use https://www.freeformatter.com/cron-expression-generator-quartz.html to make good ones
@@ -24,10 +21,20 @@ namespace components.schedular
 
         public JobHandlerEnumModel? handler { get; set; }
 
-        public static readonly IReadOnlyDictionary<JobHandlerEnumModel, Type> mapHandlers = new Dictionary<JobHandlerEnumModel, Type>
+        public bool disabled { get; set; }
+
+        /// <summary>
+        /// JodData Map that is passed as Job Context
+        /// </summary>
+        public Dictionary<string,string> jobDataMap { get; set; }
+
+        //jobDataMap defines
+        public readonly static string TIMEOUT = @"timeout";
+
+        public JobScheduleModel()
         {
-            { JobHandlerEnumModel.run,typeof(DockerRunService)}
-        };
+            jobDataMap = new Dictionary<string, string>();
+        }
 
     }
 
