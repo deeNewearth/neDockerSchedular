@@ -2,6 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
+    <AssemblyVersion>1.0.0.20</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -15,9 +16,43 @@
     <ProjectReference Include="..\slack\Microsoft.Extensions.Logging.Slack\Microsoft.Extensions.Logging.Slack.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="deployment\" />
+    <Folder Include="tools\" />
+  </ItemGroup>
+
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <ExcludeFilesFromDeployment>appsettings.secrets.json</ExcludeFilesFromDeployment>
+    <ShouldCreateLogs>True</ShouldCreateLogs>
+    <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
+    <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
+    <UpdateAssemblyFileVersion>False</UpdateAssemblyFileVersion>
+    <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
+    <AssemblyVersionSettings>None.None.IncrementOnDemand.IncrementWithResetOnIncrease</AssemblyVersionSettings>
+    <UpdatePackageVersion>False</UpdatePackageVersion>
+    <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
+    <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
   </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <ShouldCreateLogs>True</ShouldCreateLogs>
+    <AdvancedSettingsExpanded>False</AdvancedSettingsExpanded>
+    <UpdateAssemblyVersion>True</UpdateAssemblyVersion>
+    <UpdateAssemblyFileVersion>False</UpdateAssemblyFileVersion>
+    <UpdateAssemblyInfoVersion>False</UpdateAssemblyInfoVersion>
+    <AssemblyVersionSettings>None.None.IncrementOnDemand.IncrementWithResetOnIncrease</AssemblyVersionSettings>
+    <UpdatePackageVersion>False</UpdatePackageVersion>
+    <AssemblyInfoVersionType>SettingsVersion</AssemblyInfoVersionType>
+    <InheritWinAppVersionFrom>None</InheritWinAppVersionFrom>
+  </PropertyGroup>
+
+  <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
+    <Exec Command="if $(ConfigurationName) == Release (&#xD;&#xA;(if not exist $(ProjectDir)/tools/sigcheck.exe (&#xD;&#xA;echo &quot;please download sigcheck.exe from https://download.sysinternals.com/files/Sigcheck.zip to the project tools folder&quot;&#xD;&#xA;exit -1&#xD;&#xA;)) &#xD;&#xA;)" />
+  </Target>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="echo &quot;publishing build version: C:\tools\sigcheck\sigcheck -nobanner -n $(TargetPath)&quot;&#xD;&#xA;&#xD;&#xA;$(ProjectDir)\tools\sigcheck -nobanner -n $(TargetPath) &gt;$(ProjectDir)/deployment/version.txt 2&gt;&amp;1&#xD;&#xA;set /p revversion=&lt;$(ProjectDir)/deployment/version.txt&#xD;&#xA;echo built version :%25revversion%25&#xD;&#xA;" />
+  </Target>
 
 
 </Project>

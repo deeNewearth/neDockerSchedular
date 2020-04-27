@@ -38,6 +38,7 @@ namespace schedularServer
             services.AddSingleton<Quartz.Spi.IJobFactory, components.schedular.JobFactory>();
             services.AddSingleton<Quartz.ISchedulerFactory, Quartz.Impl.StdSchedulerFactory>();
 
+            services.AddSingleton<components.schedular.ISchedularService, components.schedular.SchedularService>();
             services.AddHostedService<components.schedular.QuartzHostedService>();
 
             services.AddControllers();
@@ -71,7 +72,7 @@ namespace schedularServer
         {
             if (env.IsDevelopment())
             {
-                app.UseDeveloperExceptionPage();
+                //app.UseDeveloperExceptionPage();
             }
 
             var slackKey = Configuration["notifications:slack"];
@@ -79,7 +80,7 @@ namespace schedularServer
 
             if (!string.IsNullOrWhiteSpace(slackKey))
             {
-                var webhookUrl = new Uri($"https://hooks.slack.com/services/{slackKey}");
+                var webhookUrl = new Uri(slackKey);
 
                 var criticalChannel = Configuration["notifications:criticalChannel"]?? "#criticalChannel";
                 var normalChannel = Configuration["notifications:normalChannel"] ?? "#normalChannel";
@@ -90,7 +91,7 @@ namespace schedularServer
                 loggerFactory.AddSlack(new SlackConfiguration
                 {
                     webhookUrl = webhookUrl,
-                    MinLevel = LogLevel.Error,
+                    MinLevel = LogLevel.Critical,
 
                     slackFormatter = (text, cat, level, ex) => SlackMessage(criticalChannel, botName,$"*{text}*",ex, source,cat)
                 }, env) ;

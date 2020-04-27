@@ -18,17 +18,17 @@ namespace schedularServer
 
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-                .ConfigureHostConfiguration(configHost =>
+                .ConfigureAppConfiguration((hostingContext, config) =>
                 {
                     //we load job schedules from this extra file
                     //that was the container could export the file 
-                    configHost.AddJsonFile("appSettings.jobSchedules.json", optional: false, reloadOnChange:true);
+                    config.AddJsonFile("appSettings.jobSchedules.json", optional: false, reloadOnChange:true);
                 })
                 .ConfigureLogging((hostingContext, builder) =>
                 {
                     builder.Serilog_withNamedPath(
                         "jobName","other",
-                        hostingContext.Configuration.GetSection("FileLogger")
+                        hostingContext.Configuration.GetSection(components.schedular.JobConfigSection.FILELOGGERCONFIGSECTION)
                         );
                     //builder.AddFile(hostingContext.Configuration.GetSection("FileLogger"));
                 })

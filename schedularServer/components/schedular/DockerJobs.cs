@@ -56,9 +56,14 @@ namespace components.schedular
             _executer = executer;
         }
 
+        public static string jobNameFromKey(JobKey key)
+        {
+            return key.Name.Split('.').Last();
+        }
+
         public async Task Execute(IJobExecutionContext context)
         {
-            var jobName = context.JobDetail.Key.Name.Split('.').Last();
+            var jobName = jobNameFromKey( context.JobDetail.Key);
             var started = DateTime.UtcNow;
             try
             {

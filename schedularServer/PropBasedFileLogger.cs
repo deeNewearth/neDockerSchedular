@@ -17,6 +17,7 @@ namespace schedularServer
 
     public static class PropBasedFileLogger
     {
+
         /// <summary>
         /// create sync files name with propery subfolder
         /// </summary>
@@ -65,12 +66,10 @@ namespace schedularServer
                     {
                         var fileName = Environment.ExpandEnvironmentVariables(config.FileFormat);
 
-                        var fileWithpath = System.IO.Path.Combine(config.LogFolder, prop, fileName);
-
                         w.RollingFile(
                             formatter,
 
-                            fileWithpath,
+                            System.IO.Path.Combine( config.logFileFolder(prop),fileName),
 
                             fileSizeLimitBytes: config.FileSizeLimitBytes,
                             retainedFileCountLimit: config.RetainedFileCountLimit,
@@ -157,10 +156,12 @@ namespace schedularServer
         }
     }
 
-    internal class FileLoggingConfiguration
+    class FileLoggingConfiguration
     {
-        internal const long DefaultFileSizeLimitBytes = 1024 * 1024 * 1024;
-        internal const int DefaultRetainedFileCountLimit = 31;
+        //Since we will be ready the log files and sending them on the wire....
+        //we want to keep the file sizes small 
+        internal const long DefaultFileSizeLimitBytes = 1024 * 1024;
+        internal const int DefaultRetainedFileCountLimit = 100;
 
         internal const string DefaultOutputTemplate =
             "{Timestamp:o} {RequestId,13} [{Level:u3}] {Message} ({EventId:x8}){NewLine}{Exception}";
@@ -188,7 +189,7 @@ namespace schedularServer
         /// <summary>
         /// The maximum size, in bytes, to which any single log file will be
         /// allowed to grow. For unrestricted growth, pass <c>null</c>. The
-        /// default is 1 GiB.
+        /// default is 10 MB.
         /// </summary>
         public long? FileSizeLimitBytes
         { get; set; } = DefaultFileSizeLimitBytes;
@@ -196,7 +197,7 @@ namespace schedularServer
         /// <summary>
         /// The maximum number of log files that will be retained, including
         /// the current log file. For unlimited retention, pass <c>null</c>.
-        /// The default is 31.
+        /// The default is 10.
         /// </summary>
         public int? RetainedFileCountLimit
         { get; set; } = DefaultRetainedFileCountLimit;
@@ -206,5 +207,13 @@ namespace schedularServer
         /// The default is "{Timestamp:o} {RequestId,13} [{Level:u3}] {Message} ({EventId:x8}){NewLine}{Exception}"
         /// </summary>
         public string OutputTemplate { get; set; } = DefaultOutputTemplate;
+
+        public string logFileFolder(string prop)
+        {
+            return System.IO.Path.Combine(LogFolder, prop);
+        }
+
+       
+
     }
 }

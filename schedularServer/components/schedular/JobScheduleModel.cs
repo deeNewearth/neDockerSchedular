@@ -43,6 +43,10 @@ namespace components.schedular
     /// </summary>
     public class JobConfigSection
     {
+        /// <summary>
+        /// where we store config for Job spcific config
+        /// </summary>
+        static public readonly string FILELOGGERCONFIGSECTION = "FileLogger";
         public Dictionary<string, JobScheduleModel> jobs { get; set; }
 
         public JobConfigSection()

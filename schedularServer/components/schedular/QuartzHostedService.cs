@@ -16,9 +16,33 @@ using Quartz.Spi;
 
 namespace components.schedular
 {
+    public interface ISchedularService
+    {
+        Task StartAsync(CancellationToken cancellationToken);
+        Task StopAsync(CancellationToken cancellationToken);
 
+        IScheduler scheduler { get; }
+    }
 
     public class QuartzHostedService : IHostedService
+    {
+        readonly ISchedularService _schedularService;
+        public QuartzHostedService(ISchedularService schedularService)
+        {
+            _schedularService = schedularService;
+        }
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            return _schedularService.StartAsync(cancellationToken);
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return _schedularService.StartAsync(cancellationToken);
+        }
+    }
+
+    public class SchedularService : ISchedularService
     {
         readonly ISchedulerFactory _schedulerFactory;
         readonly IJobFactory _jobFactory;
@@ -30,12 +54,12 @@ namespace components.schedular
 
         readonly ILogger _logger;
 
-        public QuartzHostedService(
+        public SchedularService(
             IConfiguration configuration,
         ISchedulerFactory schedulerFactory,
         IJobFactory jobFactory,
         IHostApplicationLifetime applicationLifetime,
-        ILogger<QuartzHostedService> logger)
+        ILogger<SchedularService> logger)
         {
             _logger = logger;
             _schedulerFactory = schedulerFactory;
@@ -57,6 +81,8 @@ namespace components.schedular
         }
 
         IScheduler _scheduler = null;
+
+        public IScheduler scheduler => _scheduler;
 
         //we store the has of the config to avoid un necessary reloads
         string _configHash = null;
@@ -138,12 +164,8 @@ namespace components.schedular
 
                    var trigger = TriggerBuilder.Create()
                        .WithIdentity($"{id}.trigger", handlerType.FullName)
-                       .WithCronSchedule(jobData.Value.cronStatement, x => x.WithMisfireHandlingInstructionFireAndProceed())
+                       .WithCronSchedule(jobData.Value.cronStatement, x => x.WithMisfireHandlingInstructionDoNothing())
                        .StartNow()
-/*                       .WithSimpleSchedule(s => s
-                           .WithIntervalInSeconds(5)
-                           .RepeatForever())
-*/                      
                        .Build();
 
 
