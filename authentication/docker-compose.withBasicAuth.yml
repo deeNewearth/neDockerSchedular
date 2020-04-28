@@ -8,6 +8,6 @@ services:
       - 8082:80
     volumes:
       - ./config/conf.withBasicAuth.d:/etc/nginx/conf.d/
-      - ./config/htpasswd:/.htpasswd
-      
+      - ./config/.htpasswd:/.htpasswd
+
 
