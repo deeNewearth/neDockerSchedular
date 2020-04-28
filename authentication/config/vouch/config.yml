@@ -1,0 +1,22 @@
+
+# vouch config
+# bare minimum to get vouch running with google
+
+vouch:
+#  domains:
+#  - yourdomain.com
+#  - yourotherdomain.com
+#  - localhost
+  allowAllUsers: true
+  
+oauth:
+  provider: google
+  # get credentials from...
+  # https://console.developers.google.com/apis/credentials
+  client_id: XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX.apps.googleusercontent.com
+  client_secret: XXXXXXXXXXXXXXXXXXXXX
+  callback_urls: 
+    - http://localhost:8082/auth
+
+  preferredDomain: localhost:8082
+  # endpoints set from https://godoc.org/golang.org/x/oauth2/google

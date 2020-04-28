@@ -1,0 +1,17 @@
+version: '3'
+
+services:
+
+  vouch:
+    image: voucher/vouch-proxy:0.10.2
+    ports:
+      - 9090:9090
+    volumes:
+      - ./config/vouch/config.yml:/config/config.yml
+
+  webforwarder:
+    image: nginx
+    ports:
+      - 8082:80
+    volumes:
+      - ./config/conf.withVouch.d:/etc/nginx/conf.d/
