@@ -4,7 +4,9 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,6 +14,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Slack;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 
 namespace schedularServer
 {
@@ -29,8 +32,12 @@ namespace schedularServer
         {
             services.AddTransient<components.docker.IDockerExecuter,components.docker.DockerExecuter>();
 
+            services.AddAuthentication("Basic")
+                    .AddScheme<components.authentication.VouchOptions, components.authentication.VouchAuthHandler>("Basic", null);
+            
+
             //register all Jobs
-            foreach(var t in components.schedular.ScheduledJob.mapHandlers)
+            foreach (var t in components.schedular.ScheduledJob.mapHandlers)
             {
                 services.AddTransient(t.Value);
             }
@@ -70,10 +77,24 @@ namespace schedularServer
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory loggerFactory)
         {
-            if (env.IsDevelopment())
-            {
-                //app.UseDeveloperExceptionPage();
-            }
+
+            app.UseExceptionHandler(
+             builder =>
+             {
+                 builder.Run(
+                   async context =>
+                   {
+
+                       var exception = context.Features.Get<IExceptionHandlerFeature>()?.Error;
+
+                       //var error = reactBase.ErrorMessage.SetStatusGetResult(context, exception, loggerFactory.CreateLogger("Global-Exception"));
+                       var error = new { message = "we cannot handle this " };
+                       context.Response.ContentType = "application/json";
+
+                       await context.Response.WriteAsync(JsonConvert.SerializeObject(error)).ConfigureAwait(false);
+                   });
+             });
+
 
             var slackKey = Configuration["notifications:slack"];
             Debug.Assert(!string.IsNullOrWhiteSpace(slackKey), "Put your slack key in global environment  notifications__slack for slack publish to work");
@@ -116,6 +137,10 @@ namespace schedularServer
 
             }
 
+            app.UseDefaultFiles();
+            app.UseStaticFiles();
+
+            app.UseAuthentication();
             app.UseRouting();
 
             app.UseAuthorization();
@@ -124,6 +149,7 @@ namespace schedularServer
             {
                 endpoints.MapControllers();
             });
+            
         }
     }
 }

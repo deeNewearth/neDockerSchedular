@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -12,7 +13,8 @@ using Quartz.Impl.Matchers;
 namespace components.schedular
 {
     [ApiController]
-    [Route("[controller]")]
+    [Authorize]
+    [Route("[api/controller]")]
     public class JobsController : ControllerBase
     {
         readonly ILogger<JobsController> _logger;
@@ -40,7 +42,7 @@ namespace components.schedular
 
         IEnumerable<string> jobLogs(JobKey key)
         {
-            var fileConfig =  _configuration.GetSection(JobConfigSection.FILELOGGERCONFIGSECTION).Get<schedularServer.FileLoggingConfiguration>();
+            var fileConfig =  _configuration.GetSection(JobConfigSection.FILELOGGERCONFIGSECTION).Get<filelogger.FileLoggingConfiguration>();
             var logFolderPath = fileConfig.logFileFolder(ScheduledJob.jobNameFromKey(key));
 
             if (!Directory.Exists(logFolderPath))

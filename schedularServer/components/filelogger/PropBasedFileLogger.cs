@@ -11,7 +11,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace schedularServer
+namespace components.filelogger
 {
     //copied most of this from https://github.com/serilog/serilog-extensions-logging-file/blob/dev/src/Serilog.Extensions.Logging.File/Microsoft/Extensions/Logging/FileLoggerExtensions.cs
 

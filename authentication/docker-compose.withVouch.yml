@@ -7,7 +7,8 @@ services:
     ports:
       - 9090:9090
     volumes:
-      - ./config/vouch/config.yml:/config/config.yml
+#      - ./config/vouch/config.yml:/config/config.yml
+      - ./config/vouch/config.noSourceControl.yml:/config/config.yml
 
   webforwarder:
     image: nginx
