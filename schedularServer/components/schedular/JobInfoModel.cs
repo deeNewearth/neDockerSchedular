@@ -12,6 +12,9 @@ namespace components.schedular
     public class JobInfoModel
     {
         public string jobName { get; set; }
+
+        public string description {get;set;}
+
         public DateTimeOffset? previousFired { get; set; }
         public DateTimeOffset? nextScheduled { get; set; }
 
@@ -43,9 +46,13 @@ namespace components.schedular
                 nextFired = trigger.GetNextFireTimeUtc()
             }));
 
+            var details = await scheduler.GetJobDetail(status[0].trigger.JobKey);
+                        
+
             return new JobInfoModel
             {
                 jobName = status[0].trigger.JobKey.Name,
+                description = details.Description,
                 cronSummary = status.Where(s => !string.IsNullOrWhiteSpace(s.cronSummary)).Select(s=>s.cronSummary).FirstOrDefault(),
                 isRunning = status.Where(s=>s.status == TriggerState.Blocked).Count() > 1,
                 previousFired = status.Where(s => s.prevFired.HasValue).OrderByDescending(s => s.prevFired.Value).Select(s => s.prevFired.Value).FirstOrDefault(),

@@ -14,7 +14,7 @@ namespace components.schedular
 {
     [ApiController]
     [Authorize]
-    [Route("[api/controller]")]
+    [Route("[controller]")]
     public class JobsController : ControllerBase
     {
         readonly ILogger<JobsController> _logger;
@@ -34,6 +34,7 @@ namespace components.schedular
         [HttpGet("list")]
         public async Task<JobInfoModel[]> listJobs()
         {
+            
             var allJobKeys = await _schedularService.scheduler.GetJobKeys (GroupMatcher<JobKey>.AnyGroup());
 
             return await Task.WhenAll(allJobKeys.Select(tKey =>

@@ -30,6 +30,10 @@ namespace schedularServer
         // This method gets called by the runtime. Use this method to add services to the container.
         public void ConfigureServices(IServiceCollection services)
         {
+#if DEBUG
+            services.AddCors();
+#endif
+
             services.AddTransient<components.docker.IDockerExecuter,components.docker.DockerExecuter>();
 
             services.AddAuthentication("Basic")
@@ -77,6 +81,10 @@ namespace schedularServer
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env, ILoggerFactory loggerFactory)
         {
+
+#if DEBUG
+            app.UseCors(builder => builder.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
+#endif
 
             app.UseExceptionHandler(
              builder =>
@@ -137,6 +145,18 @@ namespace schedularServer
 
             }
 
+            app.Use(async (context, next) =>
+            {
+                await next();
+                var path = context.Request.Path.Value;
+
+                if (!path.StartsWith("/jobs") && !System.IO.Path.HasExtension(path))
+                {
+                    context.Request.Path = "/index.html";
+                    await next();
+                }
+            });
+
             app.UseDefaultFiles();
             app.UseStaticFiles();
 
@@ -147,7 +167,7 @@ namespace schedularServer
 
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapControllers();
+               endpoints.MapControllers();
             });
             
         }

@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <AssemblyVersion>1.0.1.14</AssemblyVersion>
+    <AssemblyVersion>1.0.1.41</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,7 +23,24 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Include="wwwroot\index.html" />
+    <TypeScriptCompile Include="..\schedularClient\generated\DockerExecParamsModel.ts">
+      <Link>generatedModels\DockerExecParamsModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\DockerStartParamsModel.ts">
+      <Link>generatedModels\DockerStartParamsModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\JobHandlerEnumModel.ts">
+      <Link>generatedModels\JobHandlerEnumModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\JobInfoModel.ts">
+      <Link>generatedModels\JobInfoModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\JobRunningStatusModel.ts">
+      <Link>generatedModels\JobRunningStatusModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\JobScheduleModel.ts">
+      <Link>generatedModels\JobScheduleModel.ts</Link>
+    </TypeScriptCompile>
   </ItemGroup>
 
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
