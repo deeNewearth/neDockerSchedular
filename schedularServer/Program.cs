@@ -24,6 +24,14 @@ namespace schedularServer
                     //we load job schedules from this extra file
                     //that was the container could export the file 
                     config.AddJsonFile("appSettings.jobSchedules.json", optional: false, reloadOnChange:true);
+
+#if DEBUG
+                    var customMode = Environment.GetEnvironmentVariable("DEV_APPMODE");
+                    if (!string.IsNullOrWhiteSpace(customMode))
+                    {
+                        config.AddJsonFile($"appsettings.Development.{customMode}.json", optional: false, reloadOnChange: true);
+                    }
+#endif
                 })
                 .ConfigureLogging((hostingContext, builder) =>
                 {

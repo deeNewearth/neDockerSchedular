@@ -13,6 +13,17 @@ using System.Threading.Tasks;
 namespace components.schedular
 {
     [DisallowConcurrentExecution]
+    public class DockerRunJob : ScheduledJob, IJob
+    {
+        public DockerRunJob(
+            docker.IDockerExecuter docker,
+            ILogger<ScheduledJob> logger)
+            : base((jobName, token) => docker.RunContainerAsync(jobName, logger, token), logger) { }
+    }
+
+
+
+    [DisallowConcurrentExecution]
     public class DockerStartJob : ScheduledJob, IJob {
         public DockerStartJob(
             docker.IDockerExecuter docker,
@@ -37,7 +48,8 @@ namespace components.schedular
         public static readonly IReadOnlyDictionary<JobHandlerEnumModel, Type> mapHandlers = new Dictionary<JobHandlerEnumModel, Type>
         {
             { JobHandlerEnumModel.start,typeof(DockerStartJob)},
-            { JobHandlerEnumModel.exec,typeof(DockerExecJob)}
+            { JobHandlerEnumModel.exec,typeof(DockerExecJob)},
+            { JobHandlerEnumModel.run,typeof(DockerRunJob)},
         };
 
         /// <summary>

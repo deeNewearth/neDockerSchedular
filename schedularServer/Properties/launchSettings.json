@@ -20,6 +20,7 @@
       "commandName": "Project",
       "launchUrl": "weatherforecast",
       "environmentVariables": {
+        "DEV_APPMODE": "radioMQ",
         "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "applicationUrl": "http://localhost:5000"

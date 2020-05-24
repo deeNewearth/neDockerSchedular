@@ -90,28 +90,7 @@ namespace components.schedular
             if (null == theJob)
                 throw new FileNotFoundException($"the job {jobName} not found");
 
-
-            var jobTnfo = await JobInfoModel.fromJobKey(_schedularService.scheduler, theJob);
-
-            if (runNow)
-            {
-                _logger.LogDebug($"runNow needed runningStatus-> {jobTnfo.isRunning}");
-
-                if (jobTnfo.isRunning)
-                {
-                    throw new Exception("Job is already running");
-                }
-
-
-                await _schedularService.scheduler.TriggerJob(theJob);
-
-                //give the job a min to Start 
-                await Task.Delay(TimeSpan.FromSeconds(5));
-
-                //reload triggers
-                jobTnfo = await JobInfoModel.fromJobKey(_schedularService.scheduler, theJob);
-
-            }
+            var jobTnfo = await _schedularService.GetJobInfoAsync(jobName, runNow);
 
             return new JobRunningStatusModel
             {

@@ -15,6 +15,7 @@ namespace components.docker
 {
     public interface IDockerExecuter
     {
+        Task RunContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
         Task StartContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
         Task ExecContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
     }
@@ -42,7 +43,7 @@ namespace components.docker
             return launchConfig;
         }
 
-        DockerClient dockerClient()
+        DockerClient createDockerClient()
         {
             var dockerUrl = _configuration["Docker:uri"];
             if (string.IsNullOrWhiteSpace(dockerUrl))
@@ -65,7 +66,7 @@ namespace components.docker
                 throw new Exception($"No command for launchConfig ");
 
 
-            var client = dockerClient();
+            var client = createDockerClient();
 
             var created = await client.Containers.ExecCreateContainerAsync(execConfig.containerId, new ContainerExecCreateParameters
             {
@@ -139,23 +140,20 @@ namespace components.docker
 
         }
 
-        public async Task StartContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task RunContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var launchConfig = readParameters<DockerStartParamsModel>(jobName);
+            var launchConfig = readParameters<DockerRunParamsModel>(jobName);
 
-            if (string.IsNullOrWhiteSpace(launchConfig.containerId))
-                throw new Exception($"No containerId for launchConfig ");
+            if (string.IsNullOrWhiteSpace(launchConfig.image))
+                throw new Exception($"No image for launchConfig ");
 
 
-            var client = dockerClient();
-
-            /* the best way is to deploy container manually and use this to run
+            var client = createDockerClient();
+            
             var found = await client.Images.ListImagesAsync(new ImagesListParameters
             {
                 MatchName = launchConfig.image
             });
-
-
 
             if (found.Count > 1)
             {
@@ -167,20 +165,81 @@ namespace components.docker
                     FromImage = launchConfig.image
                 }, null, new Progress<JSONMessage>(p =>
                 {
-                    _logger.LogInformation($"{p.Time}: [{p.Status}: {p.ProgressMessage}]");
+                    logger.LogInformation($"{p.Time}: [{p.Status}: {p.ProgressMessage}]");
                     if (!string.IsNullOrWhiteSpace(p.ErrorMessage))
-                        _logger.LogError(p.ErrorMessage);
+                        logger.LogError(p.ErrorMessage);
                 }));
             }
 
-
-            var container = await client.Containers.CreateContainerAsync(new CreateContainerParameters
+            var options = new CreateContainerParameters
             {
                 Image = launchConfig.image,
+            };
 
-            });
+            if (null != launchConfig.commands && launchConfig.commands.Length > 0)
+                options.Cmd = launchConfig.commands;
 
-           */
+            if (null != launchConfig.entryPoint && launchConfig.entryPoint.Length > 0)
+                options.Entrypoint = launchConfig.entryPoint;
+
+            if (null != launchConfig.env && launchConfig.env.Length > 0)
+                options.Env= launchConfig.env;
+
+            var container = await client.Containers.CreateContainerAsync(options);
+
+            logger.LogInformation($"Container created from image {launchConfig.image}");
+
+            try
+            {
+                var started = DateTime.UtcNow;
+                if (!await client.Containers.StartContainerAsync(container.ID, new ContainerStartParameters { }, cancellationToken))
+                    throw new Exception("failed to start container");
+
+                //The warning is incorrect
+#pragma warning disable CS0618 // Type or member is obsolete
+                await Task.WhenAll(Task.Run(async () =>
+                {
+                    var done = await client.Containers.WaitContainerAsync(container.ID, cancellationToken);
+                    if (0 != done.StatusCode)
+                    {
+                        throw new Exception($"Run failed with Status:{done.StatusCode}");
+                    }
+
+                }),
+                client.Containers.GetContainerLogsAsync(container.ID, new ContainerLogsParameters
+                {
+                    Follow = true,
+                    ShowStdout = true,
+                    ShowStderr = true,
+                }, cancellationToken, new Progress<string>(log => logger.LogDebug(new EventId(0, "output"), "{jobName} ->{log}", jobName, log))));
+#pragma warning restore CS0618 // Type or member is obsolete
+
+            }
+            finally
+            {
+                try
+                {
+                    await client.Containers.RemoveContainerAsync(container.ID, new ContainerRemoveParameters());
+                }
+                catch(Exception ex)
+                {
+                    logger.LogCritical(ex, $"Failed to remove container id {container.ID} for image {launchConfig.image}");
+                }
+            }
+
+
+        }
+
+
+        public async Task StartContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
+        {
+            var launchConfig = readParameters<DockerStartParamsModel>(jobName);
+
+            if (string.IsNullOrWhiteSpace(launchConfig.containerId))
+                throw new Exception($"No containerId for launchConfig ");
+
+
+            var client = createDockerClient();
 
             var started = DateTime.UtcNow;
             if (!await client.Containers.StartContainerAsync(launchConfig.containerId, new ContainerStartParameters { }, cancellationToken))

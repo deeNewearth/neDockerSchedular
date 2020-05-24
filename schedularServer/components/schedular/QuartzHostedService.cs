@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Threading;
@@ -11,6 +12,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Quartz;
+using Quartz.Impl.Matchers;
 using Quartz.Spi;
 
 
@@ -22,6 +24,14 @@ namespace components.schedular
         Task StopAsync(CancellationToken cancellationToken);
 
         IScheduler scheduler { get; }
+
+        /// <summary>
+        /// Get job info by name and optionally trigger a job to execute right away
+        /// </summary>
+        /// <param name="jobName"></param>
+        /// <param name="runNow"></param>
+        /// <returns></returns>
+        Task<JobInfoModel> GetJobInfoAsync(string jobName, bool runNow = false);
     }
 
     public class QuartzHostedService : IHostedService
@@ -83,6 +93,41 @@ namespace components.schedular
         IScheduler _scheduler = null;
 
         public IScheduler scheduler => _scheduler;
+
+
+        public async Task<JobInfoModel> GetJobInfoAsync(string jobName, bool runNow = false)
+        {
+            var allJobs = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.AnyGroup());
+            var theJob = allJobs.Where(j => j.Name == jobName).FirstOrDefault();
+
+            if (null == theJob)
+                throw new FileNotFoundException($"the job {jobName} not found");
+
+            var jobTnfo = await JobInfoModel.fromJobKey(_scheduler, theJob);
+
+            if (runNow)
+            {
+                _logger.LogDebug($"runNow needed runningStatus-> {jobTnfo.isRunning}");
+
+                if (jobTnfo.isRunning)
+                {
+                    throw new Exception("Job is already running");
+                }
+
+
+                await _scheduler.TriggerJob(theJob);
+
+                //give the job a min to Start 
+                await Task.Delay(TimeSpan.FromSeconds(5));
+
+                //reload triggers
+                jobTnfo = await JobInfoModel.fromJobKey(_scheduler, theJob);
+
+            }
+
+            return jobTnfo;
+
+        }
 
         //we store the has of the config to avoid un necessary reloads
         string _configHash = null;

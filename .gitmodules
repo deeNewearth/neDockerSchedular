@@ -1,3 +1,6 @@
 [submodule "slack"]
 	path = slack
 	url = https://github.com/shreedee/Microsoft.Extensions.Logging.Slack.git
+[submodule "neRabbitMQ"]
+	path = neRabbitMQ
+	url = https://github.com/shreedee/neRabbitMQ.git

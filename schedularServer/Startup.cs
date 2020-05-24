@@ -49,8 +49,23 @@ namespace schedularServer
             services.AddSingleton<Quartz.Spi.IJobFactory, components.schedular.JobFactory>();
             services.AddSingleton<Quartz.ISchedulerFactory, Quartz.Impl.StdSchedulerFactory>();
 
+            var rabbitMQexists = !string.IsNullOrWhiteSpace(Configuration["rabbitMQ:exchange"]);
+
+            if (rabbitMQexists)
+            {
+                services.AddSingleton<neMQConnector.IHackedAppLifeline, neMQConnector.SimpleLifeTime>();
+
+                services.AddSingleton<neMQConnector.IRabbitMQConnector, neMQConnector.RabbitMQConnector>();
+                services.AddSingleton<IHostedService, neMQConnector.RabbitMQService>();
+            }
+            else
+            {
+                Console.WriteLine("RabbitMQ not configured");
+            }
+
             services.AddSingleton<components.schedular.ISchedularService, components.schedular.SchedularService>();
             services.AddHostedService<components.schedular.QuartzHostedService>();
+
 
             services.AddControllers();
         }

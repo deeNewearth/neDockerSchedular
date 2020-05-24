@@ -7,6 +7,10 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "schedularServer", "schedula
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Microsoft.Extensions.Logging.Slack", "slack\Microsoft.Extensions.Logging.Slack\Microsoft.Extensions.Logging.Slack.csproj", "{9129F394-4346-4843-8841-10F91A3BA609}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "neMQAbstractions", "neRabbitMQ\neMQAbstractions\neMQAbstractions.csproj", "{218F0FDF-94B1-4EA8-A14E-0E9F4633337A}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "neMQConnector", "neRabbitMQ\neMQConnector\neMQConnector.csproj", "{D85CCCAF-0C9A-4E22-A781-A76F91859B9F}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +25,14 @@ Global
 		{9129F394-4346-4843-8841-10F91A3BA609}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9129F394-4346-4843-8841-10F91A3BA609}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9129F394-4346-4843-8841-10F91A3BA609}.Release|Any CPU.Build.0 = Release|Any CPU
+		{218F0FDF-94B1-4EA8-A14E-0E9F4633337A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{218F0FDF-94B1-4EA8-A14E-0E9F4633337A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{218F0FDF-94B1-4EA8-A14E-0E9F4633337A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{218F0FDF-94B1-4EA8-A14E-0E9F4633337A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D85CCCAF-0C9A-4E22-A781-A76F91859B9F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D85CCCAF-0C9A-4E22-A781-A76F91859B9F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D85CCCAF-0C9A-4E22-A781-A76F91859B9F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D85CCCAF-0C9A-4E22-A781-A76F91859B9F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
