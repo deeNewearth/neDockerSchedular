@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading.Tasks;
+using GreenPipes;
+using MassTransit;
+using MassTransit.RabbitMqTransport.Topology;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
@@ -16,7 +19,7 @@ using Microsoft.Extensions.Logging.Slack;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
-namespace schedularServer
+namespace neSchedular
 {
     public class Startup
     {
@@ -34,37 +37,65 @@ namespace schedularServer
             services.AddCors();
 #endif
 
-            services.AddTransient<components.docker.IDockerExecuter,components.docker.DockerExecuter>();
+            services.AddTransient<docker.IDockerExecuter,docker.DockerExecuter>();
 
             services.AddAuthentication("Basic")
-                    .AddScheme<components.authentication.VouchOptions, components.authentication.VouchAuthHandler>("Basic", null);
+                    .AddScheme<authentication.VouchOptions, authentication.VouchAuthHandler>("Basic", null);
             
 
             //register all Jobs
-            foreach (var t in components.schedular.ScheduledJob.mapHandlers)
+            foreach (var t in schedular.ScheduledJob.mapHandlers)
             {
                 services.AddTransient(t.Value);
             }
 
-            services.AddSingleton<Quartz.Spi.IJobFactory, components.schedular.JobFactory>();
+            services.AddSingleton<Quartz.Spi.IJobFactory, schedular.JobFactory>();
             services.AddSingleton<Quartz.ISchedulerFactory, Quartz.Impl.StdSchedulerFactory>();
 
-            var rabbitMQexists = !string.IsNullOrWhiteSpace(Configuration["rabbitMQ:exchange"]);
+            var mqConfig = Configuration.GetSection("rabbitMQ").Get<RabbitConfig>();
 
-            if (rabbitMQexists)
+            if (null != mqConfig)
             {
-                services.AddSingleton<neMQConnector.IHackedAppLifeline, neMQConnector.SimpleLifeTime>();
+                services.AddMassTransit(x =>
+                {
+                    x.AddConsumer<schedular.JobsController>();
 
-                services.AddSingleton<neMQConnector.IRabbitMQConnector, neMQConnector.RabbitMQConnector>();
-                services.AddSingleton<IHostedService, neMQConnector.RabbitMQService>();
+                    x.AddBus(context => Bus.Factory.CreateUsingRabbitMq(cfg =>
+                    {
+                        //will add healt checks later
+                        //https://masstransit-project.com/usage/configuration.html#asp-net-core
+                        // configure health checks for this bus instance
+                        //cfg.UseHealthCheck(context);
+
+                        cfg.PublishTopology.BrokerTopologyOptions = PublishBrokerTopologyOptions.MaintainHierarchy;
+
+
+                        cfg.Host(mqConfig.hostname, h => {
+                            h.Username(mqConfig.user);
+                            h.Password(mqConfig.pass);
+                        });
+
+                        cfg.ReceiveEndpoint(ExecuteJobTask.Q_NAME, ep =>
+                        {
+                            ep.PrefetchCount = 4;
+                            ep.UseMessageRetry(r => r.Interval(5, TimeSpan.FromSeconds(10)));
+
+                            ep.ConfigureConsumer<schedular.JobsController>(context);
+                           
+                        });
+                    }));
+                });
+
+
+                services.AddMassTransitHostedService();
             }
             else
             {
                 Console.WriteLine("RabbitMQ not configured");
             }
 
-            services.AddSingleton<components.schedular.ISchedularService, components.schedular.SchedularService>();
-            services.AddHostedService<components.schedular.QuartzHostedService>();
+            services.AddSingleton<schedular.ISchedularService, schedular.SchedularService>();
+            services.AddHostedService<schedular.QuartzHostedService>();
 
 
             services.AddControllers();
@@ -140,7 +171,7 @@ namespace schedularServer
                     slackFormatter = (text, cat, level, ex) => SlackMessage(criticalChannel, botName,$"*{text}*",ex, source,cat)
                 }, env) ;
 
-                var runDataName = typeof(components.schedular.ScheduledJob).FullName;
+                var runDataName = typeof(schedular.ScheduledJob).FullName;
                 //success done messages only
                 loggerFactory.AddSlack(new SlackConfiguration
                 {

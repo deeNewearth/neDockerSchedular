@@ -15,6 +15,7 @@
     }
 
 
+
     // Custom extension methods can be used in the template by adding a $ prefix e.g. $LoudName
     string LoudName(Property property)
     {

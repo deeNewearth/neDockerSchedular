@@ -10,16 +10,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace components.schedular
+namespace neSchedular.schedular
 {
-    [DisallowConcurrentExecution]
-    public class DockerRunJob : ScheduledJob, IJob
-    {
-        public DockerRunJob(
-            docker.IDockerExecuter docker,
-            ILogger<ScheduledJob> logger)
-            : base((jobName, token) => docker.RunContainerAsync(jobName, logger, token), logger) { }
-    }
+   
 
 
 
@@ -28,7 +21,7 @@ namespace components.schedular
         public DockerStartJob(
             docker.IDockerExecuter docker,
             ILogger<ScheduledJob> logger) 
-            : base((jobName, token)=> docker.StartContainerAsync(jobName, logger, token), logger) { }
+            : base(async (jobName, instanceParam, token)=> { await docker.StartContainerAsync(jobName, instanceParam, logger, token); return null; }, logger) { }
     }
 
 
@@ -38,7 +31,7 @@ namespace components.schedular
         public DockerExecJob(
             docker.IDockerExecuter docker,
             ILogger<ScheduledJob> logger)
-            : base((jobName, token) => docker.ExecContainerAsync(jobName, logger, token), logger) { }
+            : base(async (jobName, instanceParam, token) => { await docker.ExecContainerAsync(jobName, instanceParam, logger, token); return null; }, logger) { }
     }
 
 
@@ -49,7 +42,9 @@ namespace components.schedular
         {
             { JobHandlerEnumModel.start,typeof(DockerStartJob)},
             { JobHandlerEnumModel.exec,typeof(DockerExecJob)},
-            { JobHandlerEnumModel.run,typeof(DockerRunJob)},
+           /* { JobHandlerEnumModel.run,typeof(DockerRunJob)},  WE might now ever want a RUN Job
+            * It's better to set things up with compose, test them and just use exec if we need parameters  or start we none needed
+            */
         };
 
         /// <summary>
@@ -57,11 +52,14 @@ namespace components.schedular
         /// also we need to make sure to follow the conventions so that data is saved as Json properly
         /// </summary>
         readonly ILogger<ScheduledJob> _logger;
-        
-        Func<string, CancellationToken, Task> _executer;
+
+        /// <summary>
+        /// parameters: jobName, instanceParam (extra param for the trigger), Returns an object with ToString overwritten.. for UI display
+        /// </summary>
+        Func<string,string, CancellationToken, Task<object>> _executer;
 
         public ScheduledJob(
-            Func<string, CancellationToken, Task> executer,
+            Func<string, string, CancellationToken, Task<object>> executer,
             ILogger<ScheduledJob> logger)
         {
             _logger = logger;
@@ -73,10 +71,14 @@ namespace components.schedular
             return key.Name.Split('.').Last();
         }
 
+        public readonly static string INSTANCEPARAM_NAME = "instanceParam";
+
         public async Task Execute(IJobExecutionContext context)
         {
             var jobName = jobNameFromKey( context.JobDetail.Key);
             var started = DateTime.UtcNow;
+
+            object jobResult = null;
             try
             {
                 _logger.LogDebug(new EventId(0, "jobStarted"), "{jobName} ->Starting", jobName);
@@ -84,18 +86,32 @@ namespace components.schedular
                 var timeOut = context.JobDetail.JobDataMap.ContainsKey(JobScheduleModel.TIMEOUT) ?
                     TimeSpan.Parse((string)context.JobDetail.JobDataMap[JobScheduleModel.TIMEOUT]) : TimeSpan.FromHours(1);
 
-                var src = new CancellationTokenSource(timeOut);
-                await _executer(jobName, src.Token);
+                string instanceParam = null;
+                if (null != context.Trigger.JobDataMap && context.Trigger.JobDataMap.ContainsKey(INSTANCEPARAM_NAME))
+                {
+                    instanceParam = context.Trigger.JobDataMap[INSTANCEPARAM_NAME] as string;
+                }
 
-                _logger.LogInformation(new EventId(0, "jobFinished"), "The task *{jobName}* started at {started} UTC and ran for {duration}", jobName, started, DateTime.UtcNow - started);
+                var src = new CancellationTokenSource(timeOut);
+                jobResult = await _executer(jobName, instanceParam, src.Token);
+
+                var logString = "The task *{jobName}* started at {started} UTC and ran for {duration}";
+                var logParams = new object[] { jobName, started, DateTime.UtcNow - started };
+                if (null != jobResult)
+                {
+                    logString += " and returned {jobResult}";
+                    logParams = logParams.Concat(new[] { jobResult.ToString() }).ToArray();
+                }
+
+                _logger.LogInformation(new EventId(0, "jobFinished"), logString, logParams);
 
 
             }
             catch (OperationCanceledException ex)
             {
-                _logger.LogCritical(new EventId(0, "timeout"),ex, "The task *{jobName}* started at {started} UTC and has been running for {duration}. It seems hung",
+                _logger.LogCritical(new EventId(0, "timeout"), ex, "The task *{jobName}* started at {started} UTC and has been running for {duration}. It seems hung",
                     jobName, started, DateTime.UtcNow - started);
-                
+
                 throw new JobExecutionException($"Failed job execution {jobName}", ex, false)
                 {
                     // UnscheduleAllTriggers = !ranOnce
@@ -105,19 +121,17 @@ namespace components.schedular
             {
                 _logger.LogCritical(new EventId(0, "exception"), ex, "The task *{jobName}* Failed", jobName);
 
-                /*
-                bool ranOnce = _statData.ContainsKey(context.JobDetail.Key) && _statData[context.JobDetail.Key].ranOnce;
 
-                if (!ranOnce)
-                {
-                    _logger.LogCritical($"Stoping all triggers for {context.JobDetail.Key}");
-                }*/
 
                 throw new JobExecutionException($"Failed job execution {jobName}", ex, false)
                 {
                     // UnscheduleAllTriggers = !ranOnce
                 };
 
+            }
+            finally {
+                //This would be an exception or result for the Job watchers
+                context.Result = jobResult;
             }
         }
     }

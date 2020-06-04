@@ -1,9 +1,11 @@
 ﻿using Docker.DotNet;
 using Docker.DotNet.Models;
+using MassTransit.ConsumerSpecifications;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Quartz;
+using Quartz.Impl.AdoJobStore.Common;
 using System;
 using System.Linq;
 using System.Text;
@@ -11,13 +13,13 @@ using System.Threading;
 using System.Threading.Tasks;
 
 
-namespace components.docker
+namespace neSchedular.docker
 {
     public interface IDockerExecuter
     {
-        Task RunContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
-        Task StartContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
-        Task ExecContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
+        Task RunContainerAsync(string jobName, string instanceParam, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
+        Task StartContainerAsync(string jobName, string instanceParam, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
+        Task ExecContainerAsync(string jobName, string instanceParam, ILogger logger, CancellationToken cancellationToken = default(CancellationToken));
     }
 
     public class DockerExecuter: IDockerExecuter
@@ -52,10 +54,8 @@ namespace components.docker
             return new DockerClientConfiguration(new Uri(dockerUrl)).CreateClient();
         }
 
-        public async Task ExecContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task ExecContainerAsync(string jobName, string instanceParam, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
         {
-            
-
             var execConfig = readParameters<DockerExecParamsModel>(jobName);
 
             if (string.IsNullOrWhiteSpace(execConfig.containerId))
@@ -68,21 +68,53 @@ namespace components.docker
 
             var client = createDockerClient();
 
-            var created = await client.Containers.ExecCreateContainerAsync(execConfig.containerId, new ContainerExecCreateParameters
+            var cmd = execConfig.commands;
+            if (!string.IsNullOrEmpty(instanceParam))
+            {
+                cmd = cmd.Concat(new[] { instanceParam }).ToArray();
+            }
+
+            ///
+            if (!execConfig.runNakedCommand)
+            {
+                cmd = new[] { "bash", "-c", $"if {string.Join(" ", cmd)}; then echo all done; else echo NESCHEDULAR_COMMAND_FAILED; fi" };
+            }
+
+            logger.LogDebug("Running command " + string.Join(" ", cmd));
+
+            ContainerExecCreateResponse created;
+            var createParams = new ContainerExecCreateParameters
             {
                 AttachStderr = true,
                 AttachStdin = true,
                 AttachStdout = true,
-                Cmd = execConfig.commands,
+                Cmd = cmd,
                 Detach = false,
                 Tty = false
-            });
+            };
+
+            try
+            {
+                created = await client.Containers.ExecCreateContainerAsync(execConfig.containerId, createParams);
+
+            }
+            catch(DockerApiException ex)
+            {
+                logger.LogInformation(ex, $"container :{execConfig.containerId} is not running. We will attempt to start it");
+
+                if(!await client.Containers.StartContainerAsync(execConfig.containerId, new ContainerStartParameters { }, cancellationToken))
+                throw new Exception("failed to start container");
+
+                created = await client.Containers.ExecCreateContainerAsync(execConfig.containerId, createParams);
+
+            }
 
             using (var containerStream = await client.Containers.StartAndAttachContainerExecAsync(created.ID,false,cancellationToken ))
             {
                 var buffer = new byte[1024];
-                string errorString = null;
-                var outputString = string.Empty;
+                bool isError = false;
+                var currentOutputString = string.Empty;
+                var containerLogs = string.Empty;
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
@@ -92,15 +124,15 @@ namespace components.docker
                     var result = await containerStream.ReadOutputAsync(buffer, 0, buffer.Length, cancellationToken);
 
                     var output = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    containerLogs += output;
 
                     //seems like we don't get error messages in all cases
-                    if (output.Contains(@" exec failed") || output.Contains(@"command_failed"))
+                    if (output.Contains(@" exec failed") || output.Contains(@"NESCHEDULAR_COMMAND_FAILED"))
                     {
-                        errorString = output;
-                        //throw new Exception("Run failed with error " + output);
+                        isError = true;
                     }
 
-                    var splitted = (outputString + output).Split('\n');
+                    var splitted = (currentOutputString + output).Split('\n');
 
                     //sometime buffer returns in mid string. we always want to LOg complete strings
                     var toLog = string.Join("\n", splitted.SkipLast(1)).Trim();
@@ -109,7 +141,7 @@ namespace components.docker
                         logger.LogDebug(new EventId(0, "output"), "{jobName} ->{log}", jobName, toLog);
                     }
 
-                    outputString = splitted.Last();
+                    currentOutputString = splitted.Last();
 
                     /* There are all sort of scripts that write to stdErr even if success
                     if (null == errorString && MultiplexedStream.TargetStream.StandardError == result.Target)
@@ -120,18 +152,18 @@ namespace components.docker
 
                     if (result.EOF)
                     {
-                        if (!string.IsNullOrWhiteSpace(outputString))
+                        if (!string.IsNullOrWhiteSpace(currentOutputString))
                         {
-                            logger.LogDebug(new EventId(0, "output"), "{jobName} ->{log}", jobName, outputString);
+                            logger.LogDebug(new EventId(0, "output"), "{jobName} ->{log}", jobName, currentOutputString);
                         }
                         break;
                     }
 
                 }
 
-                if (null != errorString)
+                if (isError)
                 {
-                    throw new Exception("Run failed with error "+ (string.IsNullOrWhiteSpace(errorString)?" unknown ": errorString));
+                    throw new Exception("Run failed with error :\n"+ containerLogs);
                 }
 
 
@@ -140,9 +172,9 @@ namespace components.docker
 
         }
 
-        public async Task RunContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task RunContainerAsync(string jobName, string instanceParam, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
         {
-            var launchConfig = readParameters<DockerRunParamsModel>(jobName);
+            var launchConfig = readParameters<RunParamsModel>(jobName);
 
             if (string.IsNullOrWhiteSpace(launchConfig.image))
                 throw new Exception($"No image for launchConfig ");
@@ -231,14 +263,14 @@ namespace components.docker
         }
 
 
-        public async Task StartContainerAsync(string jobName, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
+        public async Task StartContainerAsync(string jobName, string instanceParam, ILogger logger, CancellationToken cancellationToken = default(CancellationToken))
         {
             var launchConfig = readParameters<DockerStartParamsModel>(jobName);
 
             if (string.IsNullOrWhiteSpace(launchConfig.containerId))
                 throw new Exception($"No containerId for launchConfig ");
 
-
+            
             var client = createDockerClient();
 
             var started = DateTime.UtcNow;

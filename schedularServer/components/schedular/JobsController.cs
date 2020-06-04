@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using MassTransit;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
@@ -10,12 +11,12 @@ using Microsoft.Extensions.Logging;
 using Quartz;
 using Quartz.Impl.Matchers;
 
-namespace components.schedular
+namespace neSchedular.schedular
 {
     [ApiController]
     [Authorize]
     [Route("[controller]")]
-    public class JobsController : ControllerBase
+    public class JobsController : ControllerBase, IConsumer<ExecuteJobTask>
     {
         readonly ILogger<JobsController> _logger;
         readonly ISchedularService _schedularService;
@@ -78,27 +79,48 @@ namespace components.schedular
             }
         }
 
+        public async Task Consume(ConsumeContext<ExecuteJobTask> context)
+        {
+            try
+            {
+                await _schedularService.RunNowAsync(
+                    $"docker.launch.{context.Message.jobName}",
+                    new Dictionary<string, object> { { ScheduledJob.INSTANCEPARAM_NAME, context.Message.JobParam } },
+                    blockTillComplete:true
+                    );
+            }
+            catch (FileNotFoundException ex)
+            {
+                _logger.LogCritical(ex, $"message received for non existent job {context.Message.jobName}");
+                throw ex;
+            }
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="jobName"></param>
+        /// <param name="runNow"></param>
+        /// <param name="jobParam">An extra parameter for the job</param>
+        /// <returns></returns>
         [HttpGet("status/{jobName}")]
-        public async Task<JobRunningStatusModel> JobStatus(string jobName,[FromQuery] bool runNow = false)
+        public async Task<JobRunningStatusModel> JobStatus(string jobName,[FromQuery] bool runNow = false, [FromQuery] string jobParam = null)
         {
             if (string.IsNullOrWhiteSpace(jobName))
                 throw new ArgumentNullException(nameof(jobName));
+            
+            var jobData = (runNow && !string.IsNullOrEmpty(jobParam)) ? new Dictionary<string, object> { { ScheduledJob.INSTANCEPARAM_NAME, jobParam } } : null;
 
-            var allJobs = await _schedularService.scheduler.GetJobKeys(GroupMatcher<JobKey>.AnyGroup());
-            var theJob = allJobs.Where(j => j.Name == jobName).FirstOrDefault();
-
-            if (null == theJob)
-                throw new FileNotFoundException($"the job {jobName} not found");
-
-            var jobTnfo = await _schedularService.GetJobInfoAsync(jobName, runNow);
+            var jobTnfo = runNow? await _schedularService.RunNowAsync(jobName, jobData): await _schedularService.GetJobStatusAsync(jobName);
 
             return new JobRunningStatusModel
             {
                 //currentStatus = await _schedularService.scheduler.GetTriggerState(theTrigger.Key),
-                logs = jobLogs(theJob).Take(100).ToArray(),
+                logs = jobLogs(jobTnfo.jobKey).Take(100).ToArray(),
                 info = jobTnfo
             };
 
         }
     }
+
 }

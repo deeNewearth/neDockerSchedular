@@ -2,11 +2,13 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <AssemblyVersion>1.0.1.55</AssemblyVersion>
+    <AssemblyVersion>1.0.1.118</AssemblyVersion>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Docker.DotNet" Version="3.125.2" />
+    <PackageReference Include="MassTransit.AspNetCore" Version="6.3.2" />
+    <PackageReference Include="MassTransit.RabbitMQ" Version="6.3.2" />
     <PackageReference Include="Quartz" Version="3.0.7" />
     <PackageReference Include="Serilog.Extensions.Logging.File" Version="2.0.0" />
     <PackageReference Include="Serilog.Sinks.Map" Version="1.0.1" />
@@ -14,13 +16,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\neRabbitMQ\neMQAbstractions\neMQAbstractions.csproj" />
-    <ProjectReference Include="..\neRabbitMQ\neMQConnector\neMQConnector.csproj" />
+    <ProjectReference Include="..\NeSchedularAbstractions\NeSchedularAbstractions.csproj" />
     <ProjectReference Include="..\slack\Microsoft.Extensions.Logging.Slack\Microsoft.Extensions.Logging.Slack.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="deployment\" />
     <Folder Include="tools\" />
   </ItemGroup>
 
@@ -30,9 +30,6 @@
     </TypeScriptCompile>
     <TypeScriptCompile Include="..\schedularClient\generated\DockerRunParamsModel.ts">
       <Link>generatedModels\DockerRunParamsModel.ts</Link>
-    </TypeScriptCompile>
-    <TypeScriptCompile Include="..\schedularClient\generated\DockerStartParamsModel - Copy.ts">
-      <Link>generatedModels\DockerStartParamsModel - Copy.ts</Link>
     </TypeScriptCompile>
     <TypeScriptCompile Include="..\schedularClient\generated\DockerStartParamsModel.ts">
       <Link>generatedModels\DockerStartParamsModel.ts</Link>
@@ -48,6 +45,15 @@
     </TypeScriptCompile>
     <TypeScriptCompile Include="..\schedularClient\generated\JobScheduleModel.ts">
       <Link>generatedModels\JobScheduleModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\MQObserverFnParamsModel.ts">
+      <Link>generatedModels\MQObserverFnParamsModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\MQObserverIdModel.ts">
+      <Link>generatedModels\MQObserverIdModel.ts</Link>
+    </TypeScriptCompile>
+    <TypeScriptCompile Include="..\schedularClient\generated\MQSubjectModel.ts">
+      <Link>generatedModels\MQSubjectModel.ts</Link>
     </TypeScriptCompile>
   </ItemGroup>
 
@@ -77,7 +83,7 @@
   </PropertyGroup>
 
   <Target Name="PreBuild" BeforeTargets="PreBuildEvent">
-    <Exec Command="if $(ConfigurationName) == Release (&#xD;&#xA;(if not exist $(ProjectDir)/tools/sigcheck.exe (&#xD;&#xA;echo &quot;please download sigcheck.exe from https://download.sysinternals.com/files/Sigcheck.zip to the project tools folder&quot;&#xD;&#xA;exit -1&#xD;&#xA;)) &#xD;&#xA;)" />
+    <Exec Command="if $(ConfigurationName) == Release (&#xD;&#xA;(if not exist $(ProjectDir)/tools/sigcheck.exe (&#xD;&#xA;echo &quot;please download sigcheck.exe from https://download.sysinternals.com/files/Sigcheck.zip to the project tools folder&quot;&#xD;&#xA;exit -1&#xD;&#xA;)) &#xD;&#xA;)&#xD;&#xA;&#xD;&#xA;rem xcopy /s $(ProjectDir)../schedularClient/web-build  $(ProjectDir)/wwwroot/" />
   </Target>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">

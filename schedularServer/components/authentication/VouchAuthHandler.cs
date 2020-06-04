@@ -10,7 +10,7 @@ using System.Security.Principal;
 using System.Text.Encodings.Web;
 using System.Threading.Tasks;
 
-namespace components.authentication
+namespace neSchedular.authentication
 {
     public class VouchOptions: AuthenticationSchemeOptions { };
 

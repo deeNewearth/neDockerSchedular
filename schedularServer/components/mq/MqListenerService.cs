@@ -2,14 +2,14 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using neMQConnector;
+//using neMQConnector;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace components.mq
+namespace neSchedular.mq
 {
     /// <summary>
     /// Defines what actions to take when for MQ messages
@@ -19,14 +19,15 @@ namespace components.mq
         /// <summary>
         /// Whihc message we are subscribing to
         /// </summary>
-        public MQObserverIdModel observer { get; set; }
+        //public MQObserverIdModel observer { get; set; }
 
 
     }
     
 
-    public class MqListenerService : IHostedService
+    public class MqListenerService //: IHostedService
     {
+        /*
         readonly IHackedAppLifeline _lifeline;
         readonly ILogger _logger;
         readonly IRabbitMQConnector _mq;
@@ -64,5 +65,6 @@ namespace components.mq
             return Task.CompletedTask;
 
         }
+        */
     }
 }

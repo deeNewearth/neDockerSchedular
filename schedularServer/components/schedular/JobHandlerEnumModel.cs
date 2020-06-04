@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 
-namespace components.schedular
+namespace neSchedular.schedular
 {
     [JsonConverter(typeof(StringEnumConverter))]
     public enum JobHandlerEnumModel { start, exec, run}

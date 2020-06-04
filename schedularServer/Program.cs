@@ -6,9 +6,9 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using components.filelogger;
+using neSchedular.filelogger;
 
-namespace schedularServer
+namespace neSchedular
 {
     public class Program
     {
@@ -37,7 +37,7 @@ namespace schedularServer
                 {
                     builder.Serilog_withNamedPath(
                         "jobName","other",
-                        hostingContext.Configuration.GetSection(components.schedular.JobConfigSection.FILELOGGERCONFIGSECTION)
+                        hostingContext.Configuration.GetSection(neSchedular.schedular.JobConfigSection.FILELOGGERCONFIGSECTION)
                         );
                     //builder.AddFile(hostingContext.Configuration.GetSection("FileLogger"));
                 })

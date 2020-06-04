@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace components.schedular
+namespace neSchedular.schedular
 {
     /// <summary>
     /// Used to send runing status for a job

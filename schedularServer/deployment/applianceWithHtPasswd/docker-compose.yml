@@ -1,0 +1,34 @@
+version: '2.3'
+
+services:
+
+    rabbitmq:
+    image: rabbitmq:3.7.8-management-alpine
+#    restart: unless-stopped
+    ports:
+      - 15672:15672
+    hostname: "rabbit1"
+    environment:
+      - RABBITMQ_DEFAULT_USER=
+      - RABBITMQ_DEFAULT_PASS=
+
+  nedockerschedular:
+    image: labizbille/nedockerschedular:1.0.1.117
+#    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./config/appSettings.jobSchedules.json:/app/appSettings.jobSchedules.json
+    environment:
+      - "rabbitMQ__hostname=rabbitmq"
+      - "rabbitMQ__user="
+      - "rabbitMQ__pass="
+      - "rabbitMQ__exchange=radiomq"
+
+  webforwarder:
+    image: nginx
+#    restart: unless-stopped
+    ports:
+      - 8082:80
+    volumes:
+      - ./config/conf.d:/etc/nginx/conf.d
+      - ./config/htpasswd:/.htpasswd

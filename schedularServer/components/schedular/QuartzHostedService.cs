@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
@@ -13,10 +15,11 @@ using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Quartz;
 using Quartz.Impl.Matchers;
+using Quartz.Listener;
 using Quartz.Spi;
 
 
-namespace components.schedular
+namespace neSchedular.schedular
 {
     public interface ISchedularService
     {
@@ -25,13 +28,20 @@ namespace components.schedular
 
         IScheduler scheduler { get; }
 
+        Task<JobInfoModel> GetJobStatusAsync(string jobName);
+
+
         /// <summary>
-        /// Get job info by name and optionally trigger a job to execute right away
+        /// triggers a job to execute right away
         /// </summary>
         /// <param name="jobName"></param>
-        /// <param name="runNow"></param>
+        /// <param name="instanceDataMap">use this exta data for run now</param>
         /// <returns></returns>
-        Task<JobInfoModel> GetJobInfoAsync(string jobName, bool runNow = false);
+        Task<JobInfoModel> RunNowAsync(string jobName,
+            IDictionary<string, object> instanceDataMap = null,
+            bool blockTillComplete = false,
+            TimeSpan? timeout = null
+            );
     }
 
     public class QuartzHostedService : IHostedService
@@ -56,13 +66,15 @@ namespace components.schedular
     {
         readonly ISchedulerFactory _schedulerFactory;
         readonly IJobFactory _jobFactory;
-        
+
 
         IConfiguration _configuration;
 
         readonly IHostApplicationLifetime _applicationLifetime;
 
         readonly ILogger _logger;
+
+        readonly MyJobListener _jobListener;
 
         public SchedularService(
             IConfiguration configuration,
@@ -78,6 +90,7 @@ namespace components.schedular
 
             _configuration = configuration;
 
+            _jobListener = new MyJobListener(_logger);
 
             Microsoft.Extensions.Primitives.ChangeToken.OnChange(() => configuration.GetReloadToken(), () =>
             {
@@ -85,48 +98,71 @@ namespace components.schedular
                 {
                     await StartAsync(new CancellationTokenSource().Token);
                 });
-                
+
             });
 
         }
 
-        IScheduler _scheduler = null;
-
-        public IScheduler scheduler => _scheduler;
+        public IScheduler scheduler { get; private set; } = null;
 
 
-        public async Task<JobInfoModel> GetJobInfoAsync(string jobName, bool runNow = false)
+        public async Task<JobInfoModel> RunNowAsync(string jobName,
+            IDictionary<string, object> instanceDataMap = null,
+            bool blockTillComplete = false,
+            TimeSpan? timeout = null
+            )
         {
-            var allJobs = await _scheduler.GetJobKeys(GroupMatcher<JobKey>.AnyGroup());
+            var jobTnfo = await GetJobStatusAsync(jobName);
+
+            _logger.LogDebug($"runNow needed runningStatus-> {jobTnfo.isRunning}");
+
+            if (jobTnfo.isRunning)
+            {
+                var ex = new Exception("Job is already running");
+                _logger.LogCritical(ex, "Job is already running");
+                throw ex;
+            }
+
+            var myInstanceMap = new Dictionary<string, Object>(instanceDataMap);
+            myInstanceMap[JobInfoModel.INTANCE_GUID_NAME] = Guid.NewGuid();
+
+            var taskWaiter = blockTillComplete ?
+                _jobListener.getJobWaiter((Guid)myInstanceMap[JobInfoModel.INTANCE_GUID_NAME]) : null;
+            
+
+            await scheduler.TriggerJob(jobTnfo.jobKey, new JobDataMap(myInstanceMap as IDictionary<string, object>));
+
+            if (blockTillComplete)
+            {
+                var done = await Task.WhenAny(taskWaiter, Task.Delay(-1, new CancellationTokenSource(timeout ?? TimeSpan.FromMinutes(15)).Token));
+                if (done.IsFaulted)
+                {
+                    throw done.Exception.InnerException ?? done.Exception;
+                }
+            }
+            else
+            {
+                //give the job a min to Start 
+                await Task.Delay(TimeSpan.FromSeconds(5));
+            }
+
+            //reload triggers
+            jobTnfo = await JobInfoModel.fromJobKey(scheduler, jobTnfo.jobKey);
+
+
+            return jobTnfo;
+
+        }
+
+        public async Task<JobInfoModel> GetJobStatusAsync(string jobName)
+        {
+            var allJobs = await scheduler.GetJobKeys(GroupMatcher<JobKey>.AnyGroup());
             var theJob = allJobs.Where(j => j.Name == jobName).FirstOrDefault();
 
             if (null == theJob)
                 throw new FileNotFoundException($"the job {jobName} not found");
 
-            var jobTnfo = await JobInfoModel.fromJobKey(_scheduler, theJob);
-
-            if (runNow)
-            {
-                _logger.LogDebug($"runNow needed runningStatus-> {jobTnfo.isRunning}");
-
-                if (jobTnfo.isRunning)
-                {
-                    throw new Exception("Job is already running");
-                }
-
-
-                await _scheduler.TriggerJob(theJob);
-
-                //give the job a min to Start 
-                await Task.Delay(TimeSpan.FromSeconds(5));
-
-                //reload triggers
-                jobTnfo = await JobInfoModel.fromJobKey(_scheduler, theJob);
-
-            }
-
-            return jobTnfo;
-
+            return  await JobInfoModel.fromJobKey(scheduler, theJob);
         }
 
         //we store the has of the config to avoid un necessary reloads
@@ -148,12 +184,12 @@ namespace components.schedular
                     configHash = BitConverter.ToString(md5.ComputeHash(System.Text.Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(jobsConfig))));
                 }
 
-                if (null == _scheduler)
+                if (null == scheduler)
                 {
                     _logger.LogInformation("Starting schedular Service");
 
-                    _scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
-                    _scheduler.JobFactory = _jobFactory;
+                    scheduler = await _schedulerFactory.GetScheduler(cancellationToken);
+                    scheduler.JobFactory = _jobFactory;
                 }
                 else
                 {
@@ -173,7 +209,7 @@ namespace components.schedular
                         }
                     }
 
-                    await _scheduler.Clear();
+                    await scheduler.Clear();
                 }
 
                 _configHash = configHash;
@@ -200,7 +236,7 @@ namespace components.schedular
 
 
                    var handlerType = ScheduledJob.mapHandlers[jobData.Value.handler.Value];
-                   
+
                    var job = JobBuilder.Create(handlerType)
                        .WithIdentity(id, handlerType.FullName)
                        .UsingJobData(new JobDataMap(jobData.Value.jobDataMap))
@@ -214,10 +250,13 @@ namespace components.schedular
                        .Build();
 
 
-                   await _scheduler.ScheduleJob(job, trigger, cancellationToken);
+                   await scheduler.ScheduleJob(job, trigger, cancellationToken);
                }));
 
-                await _scheduler.Start(cancellationToken);
+
+                scheduler.ListenerManager.AddJobListener(_jobListener, GroupMatcher<JobKey>.AnyGroup());
+
+                await scheduler.Start(cancellationToken);
             }
             catch(Exception ex)
             {
@@ -228,12 +267,67 @@ namespace components.schedular
 
         public async Task StopAsync(CancellationToken cancellationToken)
         {
-            await _scheduler?.Shutdown(cancellationToken);
+            await scheduler?.Shutdown(cancellationToken);
 
             _logger.LogInformation("Schedular Service terminated");
 
             //shut down the application if this service is gone
             _applicationLifetime.StopApplication();
+        }
+    }
+
+    public class MyJobListener : JobListenerSupport
+    {
+        public override string Name => "PrimaryJobListener";
+
+        readonly ConcurrentDictionary<Guid, TaskCompletionSource<object>> _mapJobCompletion = new ConcurrentDictionary<Guid, TaskCompletionSource<object>>();
+
+        ILogger _logger;
+
+        public MyJobListener(ILogger logger)
+        {
+            _logger = logger;
+        }
+
+        public Task<object> getJobWaiter(Guid instanceId)
+        {
+            var theTaskSource =  _mapJobCompletion.GetOrAdd(instanceId,  new TaskCompletionSource<object>());
+
+            return theTaskSource.Task;
+
+        }
+
+        public override Task JobWasExecuted(IJobExecutionContext context, JobExecutionException jobException, CancellationToken cancellationToken = default)
+        {
+            if(!context.Trigger.JobDataMap.ContainsKey(JobInfoModel.INTANCE_GUID_NAME))
+            {
+                Debug.Assert(false, "Should never happen");
+                _logger.LogWarning("We have task without JobInfoModel.INTANCE_GUID_NAME");
+                return Task.CompletedTask;
+            }
+
+            var taskId = (Guid)context.Trigger.JobDataMap[JobInfoModel.INTANCE_GUID_NAME];
+
+            TaskCompletionSource<object> complitionSource;
+            if (_mapJobCompletion.TryRemove((Guid)context.Trigger.JobDataMap[JobInfoModel.INTANCE_GUID_NAME],out complitionSource))
+            {
+                if(null == jobException)
+                {
+                    complitionSource.SetResult(context.Result);
+                }
+                else
+                {
+                    complitionSource.SetException(jobException);
+                }
+                
+            }
+            else
+            {
+                //we have no one to talk to
+                _logger.LogDebug($"No waiters for the Task Instance {taskId}");
+            }
+
+            return Task.CompletedTask;
         }
     }
 

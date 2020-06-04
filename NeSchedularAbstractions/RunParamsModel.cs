@@ -1,11 +1,12 @@
-﻿using System;
+﻿using MassTransit;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace components.docker
+namespace neSchedular.docker
 {
-    public class DockerRunParamsModel
+    public class RunParamsModel
     {
         public string image { get; set; }
 
@@ -15,4 +16,5 @@ namespace components.docker
 
         public string[] env { get; set; }
     }
+        
 }

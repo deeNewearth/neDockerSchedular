@@ -5,6 +5,6 @@ by editing this MSBuild file. In order to learn more about this please visit htt
 -->
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
-    <_PublishTargetUrl>C:\codework\neDockerSchedular\schedularServer\bin\publish\app</_PublishTargetUrl>
+    <_PublishTargetUrl>C:\codework\AVRadioWorkflow\neDockerSchedular\schedularServer\bin\publish\app</_PublishTargetUrl>
   </PropertyGroup>
 </Project>

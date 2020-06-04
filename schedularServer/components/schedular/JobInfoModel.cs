@@ -1,10 +1,11 @@
-﻿using Quartz;
+﻿using Newtonsoft.Json;
+using Quartz;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
-namespace components.schedular
+namespace neSchedular.schedular
 {
     /// <summary>
     /// used to send Job info over the wire
@@ -20,9 +21,18 @@ namespace components.schedular
 
         public bool isRunning { get; set; }
 
+        /// <summary>
+        /// Used to keep track of a perticular instance that was triggered
+        /// </summary>
+        public Guid currentRunningId { get; set; }
+
         public string cronSummary { get; set; }
 
-        public JobInfoModel() { }
+        [JsonConstructor]
+        private JobInfoModel() { }
+
+        [JsonIgnore]
+        public JobKey jobKey { get; set; }
 
         public static async Task<JobInfoModel> fromJobKey(IScheduler scheduler, JobKey theJob)
         {
@@ -34,6 +44,8 @@ namespace components.schedular
             return await fromTriggers(scheduler, triggers);
         }
 
+
+        readonly public static string INTANCE_GUID_NAME = "jobInstanceGuid";
 
         public static async Task<JobInfoModel> fromTriggers(IScheduler scheduler, IEnumerable<ITrigger> triggers)
         {
@@ -51,12 +63,14 @@ namespace components.schedular
 
             return new JobInfoModel
             {
+                jobKey = details.Key,
                 jobName = status[0].trigger.JobKey.Name,
                 description = details.Description,
                 cronSummary = status.Where(s => !string.IsNullOrWhiteSpace(s.cronSummary)).Select(s=>s.cronSummary).FirstOrDefault(),
                 isRunning = status.Where(s=>s.status == TriggerState.Blocked).Count() > 1,
                 previousFired = status.Where(s => s.prevFired.HasValue).OrderByDescending(s => s.prevFired.Value).Select(s => s.prevFired.Value).FirstOrDefault(),
                 nextScheduled = status.Where(s => s.nextFired.HasValue).OrderBy(s => s.nextFired.Value).Select(s => s.nextFired.Value).FirstOrDefault(),
+                currentRunningId = (null != status[0].trigger.JobDataMap && status[0].trigger.JobDataMap.ContainsKey(INTANCE_GUID_NAME))? (Guid)status[0].trigger.JobDataMap[INTANCE_GUID_NAME]:Guid.Empty
             };
 
         }
